@@ -1,13 +1,46 @@
-import 'source-map-support/register'
+import {
+  APIGatewayProxyHandler,
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult
+} from "aws-lambda";
+import * as AWS from "aws-sdk";
+import "source-map-support/register";
+//import { parseUserId } from '../../auth/utils'
+import { UpdateTodoRequest } from "../../requests/UpdateTodoRequest";
 
-import { APIGatewayProxyEvent, APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda'
+const DBC = new AWS.DynamoDB.DocumentClient();
 
-import { UpdateTodoRequest } from '../../requests/UpdateTodoRequest'
+export const handler: APIGatewayProxyHandler = async (
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
+  const todoId = event.pathParameters.todoId;
+  const updatedTodoJson: UpdateTodoRequest = JSON.parse(event.body);
 
-export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const todoId = event.pathParameters.todoId
-  const updatedTodo: UpdateTodoRequest = JSON.parse(event.body)
+  const updateTodoParams = {
+    TableName: process.env.TODOS_TABLE,
+    Key: { todoId: todoId },
+    UpdateExpression: "set #n = :a, dueDate = :b, done = :c",
+    ExpressionAttributeValues: {
+      ":a": updatedTodoJson["name"],
+      ":b": updatedTodoJson.dueDate,
+      ":c": updatedTodoJson.done
+    },
+    ExpressionAttributeNames: {
+      "#n": "name"
+    },
+    ReturnValues: "UPDATED_NEW"
+  };
 
-  // TODO: Update a TODO item with the provided id using values in the "updatedTodo" object
-  return undefined
-}
+  const updatedTodo = await DBC.update(updateTodoParams).promise();
+
+  return {
+    statusCode: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Credentials": true
+    },
+    body: JSON.stringify({
+      updatedTodo
+    })
+  };
+};
